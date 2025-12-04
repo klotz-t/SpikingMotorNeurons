@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "SpikingMotorNeurons"
+version = "0.1.0"
+description = "Framework for studying the spiking activity of motor neurons"
+readme = "readme.md"
+requires-python = ">=3.11"
+license = { text = "GNU LGPL v2.1" }
+authors = [
+    { name = "Thomas Klotz", email = "thomas.klotz@imsb.uni-stuttgart.de" }
+]
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "scikit-learn"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "black",
+    "isort",
+    "mypy",
+    "jupyter",
+    "ipykernel",
+    "matplotlib",
+]
+
+[tool.setuptools]
+# map the "SpikingMotorNeurons" top‐level package to your src/SpikingMotorNeurons directory
+package-dir = { "SpikingMotorNeurons" = "src/SpikingMotorNeurons" }
+
+# explicitly list which openNMS.* packages to install
+packages = [
+    "SpikingMotorNeurons",
+    "SpikingMotorNeurons.model",
+    "SpikingMotorNeurons.analysis",
+    "SpikingMotorNeurons.utils",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = false
+warn_unused_configs = false
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
+disallow_untyped_decorators = false
+no_implicit_optional = false
+warn_redundant_casts = false
+warn_unused_ignores = false
+warn_no_return = false
+warn_unreachable = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=src/SpikingMotorNeurons" 
