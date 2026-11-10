@@ -22,7 +22,9 @@ def filtered_spike_trains_hann(spike_trains, fsamp, win_dur=0.4, high_pass=0.5, 
     win = hann(int(win_dur * fsamp)) 
     win = win / np.sum(win)
 
-    filtered_spike_trains = np.zeros_like(spike_trains)
+    n_mn, n_samples = spike_trains.shape
+
+    filtered_spike_trains = np.zeros((n_mn,n_samples))
 
     for i in range(spike_trains.shape[0]):
         #filtered_spike_trains[i,:] = filtfilt(win, 1, spike_trains[i,:], axis=1)
@@ -54,8 +56,7 @@ def estimate_num_factors_parallel_analysis(spike_times,
         - n_samples (int): Number of samples of the binary spike trains
         - num_realizations (int): Number of random spike train realizations considered
         - prctile (float): Significance threshold 
-        - window (str): TODO
-        - win_length (float): Duration of the window function used for low-pass filtering in seconds
+        - win_dur (float): Duration of the hanning window used for low-pass filtering in seconds
         - high_pass (float): Cut-off frequency for a high-pass filter to detrend filtered spike trains
         - high_pass_oder (int): Order of the applied high-pass filter
         - random_seed (int): Seed of the random number generator
