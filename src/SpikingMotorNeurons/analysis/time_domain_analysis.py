@@ -1,22 +1,39 @@
 import numpy as np
+import pandas as pd
 from scipy.signal import butter, filtfilt, fftconvolve, detrend 
 from scipy.signal.windows import hann
 from factor_analyzer import FactorAnalyzer, Rotator
 from ..utils.core import surogate_spike_train, get_binary_spike_trains
 
 
-def filtered_spike_trains_hann(spike_trains, fsamp, win_dur=0.4, high_pass=0.5, high_pass_order=2):
+def filtered_spike_trains_hann(
+        spike_trains: np.ndarray, 
+        fsamp: float, 
+        win_dur: float = 0.4, 
+        high_pass: float = 0.5, 
+        high_pass_order: float = 2
+):
     """
     Filter binary spike trains using a hanning window  
 
-    Args:
-        spike_trains (ndarray): Binary spike trains 
-        fsamp (float): Sampling frequency
-        low_pass (float): Cut-off frequency for the low-pass filter 
-        high_pass (float): Cut-off frequency for the high-pass filter
+    Parameters
+    ----------
+    spike_trains : ndarray
+       Array of binary spike trains with shape
+       ``(n_units, n_samples)`` 
+    fsamp : float 
+        Sampling frequency in Hz
+    high_pass : float or None , default 0.5 
+        Cut-off frequency for the high-pass filter
+        If None, no highpass filter is applied
+    high_pass_order : int, default 2 
+        Order for the butterwoth-type high-pass filter
 
-    Returns:
-        ndarray : Filtered spike trains
+    Returns
+    -------
+    filtered_spike_trains : ndarray
+        Filtered spike trains
+
     """
 
     win = hann(int(win_dur * fsamp)) 
@@ -36,65 +53,98 @@ def filtered_spike_trains_hann(spike_trains, fsamp, win_dur=0.4, high_pass=0.5, 
 
     return filtered_spike_trains
 
-def estimate_num_factors_parallel_analysis(spike_times, 
-                                           fsamp,
-                                           n_samples,
-                                           num_realizations=100, 
-                                           prctile=95,
-                                           win_dur=0.4,
-                                           high_pass=0.5,
-                                           high_pass_order=2,
-                                           random_seed=12
-                                           ):
+def estimate_num_factors_parallel_analysis(
+        spikes: pd.DataFrame, 
+        fsamp: float,
+        t_dur: float,
+        num_realizations: int = 100, 
+        prctile: float = 95,
+        win_dur: float = 0.4,
+        high_pass: float = 0.5,
+        high_pass_order: int = 2,
+        random_seed: int = 12
+):
     """
-    Estimate the number of latent factors explaining filtered motor neuron 
-    spike trains through parallel analysis
+    Estimate the number of latent factors explaining 
+    filtered motor neuron spike trains through 
+    parallel analysis
 
-    Args:
-        - spike_times (dict): Time stamps of the motor neuron firings
-        - fsamp (float): Sampling frequency in Hz
-        - n_samples (int): Number of samples of the binary spike trains
-        - num_realizations (int): Number of random spike train realizations considered
-        - prctile (float): Significance threshold 
-        - win_dur (float): Duration of the hanning window used for low-pass filtering in seconds
-        - high_pass (float): Cut-off frequency for a high-pass filter to detrend filtered spike trains
-        - high_pass_oder (int): Order of the applied high-pass filter
-        - random_seed (int): Seed of the random number generator
+    Parameters
+    ----------
 
-    Returns:
-        - eigenvalues(ndarray): Eigenvalues of the correlation or covariance matrix
-        - rand_percentile (float): Threshold indicating which eigenvalues reach the requested significance level
+    spike_times : pd.DataFrame 
+        Time stamps of the motor neuron firings
+    fsamp : float 
+        Sampling frequency in Hz
+    t_dur : float 
+        Duration of the signal in seconds
+    num_realizations : int , default 100 
+        Number of random spike train realizations considered
+    prctile : float , default 95 
+        Significance threshold 
+    win_dur : float , default 0.4 
+        Duration of the hanning window used for 
+        low-pass filtering in seconds
+    high_pass : float , default 0.5 
+        Cut-off frequency for a high-pass filter to 
+        detrend filtered spike trains
+    high_pass_oder : int , default 2 
+        Order of the applied high-pass filter
+    random_seed : int , default 12 
+        Seed of the random number generator
+
+    Returns
+    -------
+    eigenvalues : np.ndarray 
+        Eigenvalues of the correlation or covariance matrix
+    rand_percentile : float
+        Threshold indicating which eigenvalues reach the 
+        requested significance level
+
     """
     
     # Init random number generator
-    rng = np.random.seed(random_seed)
-    rand_seeds = np.random.randint(10000, size=num_realizations)
+    rng = np.random.default_rng(random_seed)
+    rand_seeds = rng.integers(10000, size=num_realizations)
+    #rand_seeds = np.random.randint(10000, size=num_realizations)
 
-    rand_eigenvalues = np.zeros((num_realizations, len(spike_times)))
+    units = sorted(spikes["unit_id"].unique())
+    n_units = len(units)
 
-    
+    rand_eigenvalues = np.zeros((num_realizations, n_units))
 
     for i in range(num_realizations):
 
-        rand_spike_times = surogate_spike_train(spike_times, random_seed=rand_seeds[i])
-        rand_spike_trains = get_binary_spike_trains(rand_spike_times, n_samples)
-        filtered_rand_spikes = filtered_spike_trains_hann(rand_spike_trains, 
-                                                         fsamp, 
-                                                         win_dur=win_dur,
-                                                         high_pass=high_pass,
-                                                         high_pass_order=high_pass_order)
+        rand_spikes = surogate_spike_train(
+            spikes, 
+            random_seed=rand_seeds[i]
+        )
+        rand_spike_trains = get_binary_spike_trains(
+            rand_spikes, t_dur, fsamp
+        )
+        filtered_rand_spikes = filtered_spike_trains_hann(
+            rand_spike_trains, 
+            fsamp, 
+            win_dur=win_dur,
+            high_pass=high_pass,
+            high_pass_order=high_pass_order
+        )
         
         corr = np.corrcoef(filtered_rand_spikes.T, rowvar=False)
         rand_eigenvalues[i,:] = np.linalg.eigvals(corr)
 
     rand_percentile = np.percentile(rand_eigenvalues.flatten(), prctile)
 
-    spike_trains = get_binary_spike_trains(spike_times, n_samples)
-    filtered_spikes = filtered_spike_trains_hann(spike_trains, 
-                                                fsamp, 
-                                                win_dur=win_dur,
-                                                high_pass=high_pass,
-                                                high_pass_order=high_pass_order)
+    spike_trains = get_binary_spike_trains(
+        spikes, t_dur, fsamp
+    )
+    filtered_spikes = filtered_spike_trains_hann(
+        spike_trains, 
+        fsamp, 
+        win_dur=win_dur,
+        high_pass=high_pass,
+        high_pass_order=high_pass_order
+    )
     
     corr = np.corrcoef(filtered_spikes.T, rowvar=False)
 
@@ -103,7 +153,13 @@ def estimate_num_factors_parallel_analysis(spike_times,
     return eigenvalues, rand_percentile
 
                                             
-def run_factor_analysis(filtered_spikes_trains, n_factors, method='ml', maxiter=100000, rot='promax'):
+def run_factor_analysis(
+        filtered_spikes_trains, 
+        n_factors, 
+        method='ml', 
+        maxiter=100000, 
+        rot='promax'
+):
 
     # 1. Run factor analysis
     fa = FactorAnalyzer(

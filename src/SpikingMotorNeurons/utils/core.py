@@ -1,55 +1,104 @@
 import numpy as np
+import pandas as pd
 
-def get_binary_spike_trains(spike_times, n_samples):
+def get_binary_spike_trains(
+        spikes: pd.DataFrame, 
+        t_dur: float, 
+        fsamp: float
+):
     """
-    Convert motor neuron spike indices into binary spike trains
+    Convert a table of  motor neuron spikes 
+    into binary spike trains
 
-    Args:
-        spike times (dict): Time stamps of motor neuron discharges (samples)
-        n_samples (float): Length of the signal (in samples)
+    Parameters
+    ----------
 
-    Returns:
-        ndarray : Binary spike trains
+    spike times : pd.DataFrame 
+        Table of motor neuron discharges with columns 
+        ``onset``, ``unit_id`` and ``event_type``
+    t_dur : float 
+        Length of the signal in seconds
+    fsamp : float
+        Sampling rate in Hz
+
+    Returns
+    -------
+    spike_trains : np.ndarray 
+        Array of binary spike trains with shape
+        ``(n_units, n_samples)``
     """
+    units = sorted(spikes["unit_id"].unique())
+    n_mn = len(units)
 
-    n_mn = len(spike_times)
-
+    n_samples = int(np.ceil((t_dur) * fsamp)) + 1
     spike_trains = np.zeros([n_mn, n_samples])
 
-    for i in np.arange(n_mn):
-        spike_trains[i,spike_times[i]] = 1
+    for i, l1 in enumerate(units):
+        mu_spikes = spikes[spikes["unit_id"] == l1]["onset"].values
+        mu_spikes = mu_spikes[
+            (mu_spikes >= 0) & (mu_spikes < t_dur)
+        ]
+        mu_spike_idx = np.round((mu_spikes) * fsamp).astype(int)
+        spike_trains[i, mu_spike_idx] = 1
 
     return spike_trains
 
-def surogate_spike_train(spike_times, random_seed=13):
+def surogate_spike_train(
+        spikes: pd.DataFrame, 
+        fsamp: float,
+        random_seed: int = 13
+):
     """
-    Generate a random spike train by randomly shuffeling the observed interspike intervals
+    Generate a random spike train by randomly shuffeling 
+    the observed interspike intervals
 
-    Args:
-        spike times (dict): Time stamps of motor neuron discharges (samples)
-        time_param (float): Dictonary with temporal properties of the trial
+    Parameters
+    ----------
+    spikes : pd.DataFrame 
+        Table of motor neuron discharges with columns 
+        ``onset``, ``unit_id`` and ``event_type``
+    random_seed : int
+        Seed for the random number generator
 
-    Returns:
-        ndarray : Binary spike trains
+    Returns
+    -------
+    surogate_spikes : pd.DataFrame 
+        Table of shuffled motor neuron discharges with columns 
+        ``onset``, ``duration``, ``unit_id`` 
+        and ``event_type``
+        
     """
     
-    rng = np.random.seed(random_seed)
+    rng = np.random.default_rng(random_seed)
+    surogate_spikes = pd.DataFrame(
+        columns=["onset", "duration", "unit_id", "event_type"]
+    )
 
-    surogate_spikes = {}
+    units = sorted(spikes["unit_id"].unique())
 
-    for i in range(len(spike_times)):
+    for unit in units:
 
         # random permutations of the ISI
-        isi = np.diff(spike_times[i])
-        shuffled_isi = np.random.permutation(isi)
+        mu_spikes = spikes[spikes["unit_id"] == unit]["onset"].values
+        isi = np.diff(mu_spikes)
+        shuffled_isi = rng.permutation(isi)
 
-        sign = np.random.choice([1, -1])
-        t = np.zeros(len(spike_times[i]))
-        t[0] = spike_times[i][0] + sign * np.random.randint(10)
+        # Get the fisrt spike        
+        t = mu_spikes[0] + rng.uniform(low=-isi.std(), high=isi.std())
+        surogate_spikes.loc[len(spikes)] = [
+            t, 0, unit, "motor-unit-spike"
+        ]
 
-        for j in range(len(spike_times[i])-1):
-            t[j+1] = t[j] + shuffled_isi[j]
+        # Add randomly shuffled spikes
+        for j in range(len(isi)):
+            t = t + shuffled_isi[j]
+            surogate_spikes.loc[len(spikes)] = [
+                t, 0, unit, "motor-unit-spike"
+            ]
 
-        surogate_spikes[i] = t.astype(int)    
+        surogate_spikes.sort_values(
+            by=["onset", "unit_id"],
+            ignore_index=True
+        )
 
     return surogate_spikes  

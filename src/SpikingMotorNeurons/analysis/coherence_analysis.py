@@ -1,24 +1,43 @@
 import numpy as np
 from scipy.signal import butter, filtfilt, coherence, detrend
 from scipy.optimize import least_squares
+from typing import List, Literal, Optional
 
 
-def get_mean_spike_coherence(st1, st2, fsamp=2048, f_low=0, f_up=5, win_width=1, zero_pad=10):
+def get_mean_spike_coherence(
+        st1: np.ndarray, 
+        st2: np.ndarray, 
+        fsamp: float = 2048, 
+        f_low: float = 0, 
+        f_up: float = 5, 
+        win_width: float = 1, 
+        zero_pad: int = 10
+    ):
     """
     Get the mean coherecne of two (cumulative) spike trains using Welch's method 
     in a given frequency interval 
 
-    Args:
-        st1 (ndarray): Binary spike train 1
-        st2 (ndarray): Binary spike train 2
-        fsamp (float): Sampling frequency in Herz
-        f_low (float): Lower bound of the frequecny interval of interest
-        f_up (float): Upper bound of the frequecny interval of interest
-        win_width (float): Width of the temporal window in seconds for conducting a FFT
-        zero_pad (int): Zero-padding of FFT for increasing the frequency resolution
+    Parameters
+    ----------
+    st1 : ndarray 
+        Binary spike train of neuron 1
+    st2 : ndarray
+        Binary spike train or neuron 2
+    fsamp : float , default 2048
+        Sampling frequency in Hz
+    f_low : float , default 0 
+        Lower bound of the frequecny interval of interest
+    f_up : float, default 5 
+        Upper bound of the frequecny interval of interest
+    win_width : float , default 1 
+        Width of the temporal window in seconds for conducting a FFT
+    zero_pad : int , default 10 
+        Zero-padding of FFT for increasing the frequency resolution
 
-    Returns:
-        mean_coherence (float) : Mean coherecne in a given frequency band
+    Returns
+    -------
+    mean_coherence : float
+        Mean coherecne in a given frequency band
     """
 
 
@@ -32,10 +51,48 @@ def get_mean_spike_coherence(st1, st2, fsamp=2048, f_low=0, f_up=5, win_width=1,
 
     return mean_coherence
 
-def get_z_scored_coherence(spike_trains, M=None, num_realizations=100, 
-                           fsamp=2048, win_width=1, zero_pad=10, random_seed=42):
+def get_z_scored_coherence(
+        spike_trains: np.ndarray, 
+        M: int | None = None, 
+        num_realizations: int = 100, 
+        fsamp: float = 2048, 
+        win_width: float = 1, 
+        zero_pad: int = 10, 
+        random_seed: int = 42
+    ):
+    """
+    Calculate the z-scored coherence between pairs
+    of cummulative spike trains
+
+    Parameters
+    ----------
+
+    spike_trains : np.ndarray
+        Array of binary spike trains with shape 
+        ``(n_units, n_samples)``
+    M : int or None , default None
+        Number of units of used per cummulative spike train.
+        If None, the floor of 50 % of the units is used
+    num_realizations : int , default 100
+        Number of realizations for the cummulative spike trains
+    win_width : float , default 1 
+            Width of the temporal window in seconds for conducting a FFT
+    zero_pad : int , default 10 
+        Zero-padding of FFT for increasing the frequency resolution
+    random_seed : int , default 42
+        Random seed for reproduciple random numbers
+
+    Returns 
+    -------
+
+    f : np.ndarray
+        Array of frequencies
+    z_coh : np.ndarray
+        Array of z-scored coherence values
+
+    """
     
-    rng = np.random.seed(random_seed)
+    rng = np.random.default_rng(random_seed)
 
     num_of_mus = spike_trains.shape[0]
 
@@ -57,7 +114,7 @@ def get_z_scored_coherence(spike_trains, M=None, num_realizations=100,
 
     for j in range(num_realizations):
         # Randomly asign MUs to two subsets
-        all_indices = np.random.choice(num_of_mus, size=2*M, replace=False)
+        all_indices = rng.choice(num_of_mus, size=2*M, replace=False)
         subset1 = all_indices[:M]
         subset2 = all_indices[M:]
 
@@ -79,28 +136,49 @@ def get_z_scored_coherence(spike_trains, M=None, num_realizations=100,
     return f, z_coh
 
 
-def estimate_common_drive_index(spike_trains, num_realizations=30, fsamp=2048,
-                                f_low=0, f_up=5, win_width=1, zero_pad=10, random_seed=42):
+def estimate_common_drive_index(
+        spike_trains, 
+        num_realizations: int = 30, 
+        fsamp: float = 2048,
+        f_low: float = 0, 
+        f_up: float = 5, 
+        win_width: float = 1, 
+        zero_pad: int = 10, 
+        random_seed: int = 42
+):
     
     """
     Estimate the common drive index (CDI) as proposed in Negro, Yavuz & Farina (2016)
     by computing the coherence between sub-populations of cummulative spike trains. 
 
-    Args:
-        spike_trains (ndarray): Matrix of binary spike train 1
-        num_realizations (int): Number of random repetitions
-        fsamp (float): Sampling frequency in Herz
-        f_low (float): Lower bound of the frequecny interval of interest
-        f_up (float): Upper bound of the frequecny interval of interest
-        win_width (float): Width of the temporal window in seconds for conducting a FFT
-        zero_pad (int): Zero-padding of FFT for increasing the frequency resolution
-        random_seed (int): Initalize the random seed generator
+    Parameters
+    ----------
 
-    Returns:
-        PCI (float) : Common drive index 
+    spike_trains : np.ndarray
+        Array of binary spike trains with shape 
+        ``(n_units, n_samples)``
+    num_realizations : int , default 30
+        Number of realizations for the cummulative spike trains
+    fsamp : float , default 30 
+        Sampling frequency in Hz
+    f_low : float, default 0 
+        Lower bound of the frequecny interval of interest
+    f_up : float , default 5 
+        Upper bound of the frequecny interval of interest
+    win_width : float , default 1
+        Width of the temporal window in seconds for conducting a FFT
+    zero_pad : int , default 10 
+        Zero-padding of FFT for increasing the frequency resolution
+    random_seed : int , default 42 
+        Initalize the random seed generator
+
+    Returns
+    -------
+    PCI : float
+        Estimated common drive index 
     """
 
-    rng = np.random.seed(random_seed)
+    rng = np.random.default_rng(random_seed)
 
     num_of_mus = spike_trains.shape[0]
 
@@ -118,7 +196,7 @@ def estimate_common_drive_index(spike_trains, num_realizations=30, fsamp=2048,
             pooled_mus[i,j] = M
         
             # Randomly asign MUs to two subsets
-            all_indices = np.random.choice(num_of_mus, size=2*M, replace=False)
+            all_indices = rng.choice(num_of_mus, size=2*M, replace=False)
             subset1 = all_indices[:M]
             subset2 = all_indices[M:]
 
@@ -127,8 +205,15 @@ def estimate_common_drive_index(spike_trains, num_realizations=30, fsamp=2048,
             st2 = np.sum(spike_trains[subset2,:], axis=0)
 
             # Compute the coherence between the cumulative spike trains
-            coherence_values[i,j] = get_mean_spike_coherence(st1,st2,fsamp=fsamp,f_low=f_low,f_up=f_up,
-                                                             win_width=win_width,zero_pad=zero_pad)
+            coherence_values[i,j] = get_mean_spike_coherence(
+                st1,
+                st2,
+                fsamp=fsamp,
+                f_low=f_low,
+                f_up=f_up,
+                win_width=win_width,
+                zero_pad=zero_pad
+            )
 
     # Helper function describing the CDI model        
     def CDI_model(x,A,B):
@@ -142,8 +227,14 @@ def estimate_common_drive_index(spike_trains, num_realizations=30, fsamp=2048,
         return loss
 
     # Set up a least squares optimization problem
-    least_square_optimizer = least_squares(loss_function, [1, 1], loss='soft_l1', f_scale=0.1, bounds=(1e-3,np.inf),
-                                           args=(pooled_mus.flatten(), coherence_values.flatten()))
+    least_square_optimizer = least_squares(
+        fun=loss_function, 
+        x0=[1, 1], 
+        loss='soft_l1', 
+        f_scale=0.1, 
+        bounds=(1e-3,np.inf),
+        args=(pooled_mus.flatten(), coherence_values.flatten())
+    )
     
     # Solve the optimization problem
     A_fit, B_fit = least_square_optimizer.x
