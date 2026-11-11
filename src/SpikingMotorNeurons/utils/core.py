@@ -45,7 +45,6 @@ def get_binary_spike_trains(
 
 def surogate_spike_train(
         spikes: pd.DataFrame, 
-        fsamp: float,
         random_seed: int = 13
 ):
     """
@@ -76,6 +75,8 @@ def surogate_spike_train(
 
     units = sorted(spikes["unit_id"].unique())
 
+    row_idx = 0    
+
     for unit in units:
 
         # random permutations of the ISI
@@ -83,18 +84,20 @@ def surogate_spike_train(
         isi = np.diff(mu_spikes)
         shuffled_isi = rng.permutation(isi)
 
-        # Get the fisrt spike        
+        # Get the fisrt spike    
         t = mu_spikes[0] + rng.uniform(low=-isi.std(), high=isi.std())
-        surogate_spikes.loc[len(spikes)] = [
+        surogate_spikes.loc[row_idx] = [
             t, 0, unit, "motor-unit-spike"
         ]
+        row_idx += 1
 
         # Add randomly shuffled spikes
         for j in range(len(isi)):
             t = t + shuffled_isi[j]
-            surogate_spikes.loc[len(spikes)] = [
+            surogate_spikes.loc[row_idx] = [
                 t, 0, unit, "motor-unit-spike"
             ]
+            row_idx += 1
 
         surogate_spikes.sort_values(
             by=["onset", "unit_id"],

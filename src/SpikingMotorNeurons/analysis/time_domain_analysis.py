@@ -6,6 +6,34 @@ from factor_analyzer import FactorAnalyzer, Rotator
 from ..utils.core import surogate_spike_train, get_binary_spike_trains
 
 
+def basic_spike_statistics(
+        spikes: pd.DataFrame,
+        t_start: float = 0,
+        t_dur: float = 60,
+        min_spikes: int = 10
+):
+    units = sorted(spikes["unit_id"].unique())
+    n_units = len(units)
+
+    cov_isi = np.zeros(n_units)
+    mean_fr = np.zeros(n_units)
+
+    for i, l1 in enumerate(units):
+        mu_spikes = spikes[spikes["unit_id"] == l1]["onset"].values
+        mu_spikes = mu_spikes[
+            (mu_spikes >= t_start) & (mu_spikes < t_dur)
+        ]
+
+        if len(mu_spikes) < min_spikes:
+            continue
+
+        isi = np.diff(mu_spikes)
+        cov_isi[i] = np.std(isi) / np.mean(isi)
+        mean_fr[i] = np.mean(1 / isi)
+
+    return mean_fr, cov_isi
+
+
 def filtered_spike_trains_hann(
         spike_trains: np.ndarray, 
         fsamp: float, 
