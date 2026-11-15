@@ -134,13 +134,16 @@ def get_z_scored_coherence(
         )
 
         # Apply Fisher transformation to the magnitude coherence
-        z = np.sqrt(2 * L) * np.arctanh(np.sqrt(Cxy))
+        z_coh[j,:] = np.sqrt(2 * L) * np.arctanh(np.sqrt(Cxy))
 
-        # Estimate bias from the 100-250 Hz band
-        bias = np.mean(z[idx1:idx2])
+    # Mean amplitude coherence estimation
+    z_mean = np.mean(z_coh, axis=0)
 
-        z_coh[j,:] = z - bias
+    # Estimate bias from the 100-250 Hz band
+    bias = np.mean(z_mean[idx1:idx2])
 
+    # Subtract the bias estimate
+    z_coh = z_coh - bias
 
     return f, z_coh
 
