@@ -122,15 +122,24 @@ def get_z_scored_coherence(
         st1 = np.sum(spike_trains[subset1,:], axis=0)
         st2 = np.sum(spike_trains[subset2,:], axis=0)
 
+        # Get the magnitude squared coherence
         _, Cxy = coherence(
-            detrend(st1), detrend(st2), fs=fsamp, noverlap=None,   
-            nperseg=win_width*fsamp,nfft=fsamp*zero_pad, window='hann'
+            x=detrend(st1), 
+            y=detrend(st2), 
+            fs=fsamp, 
+            noverlap=None,   
+            nperseg=win_width*fsamp,
+            nfft=fsamp*zero_pad, 
+            window='hann'
         )
 
-        bias = np.mean(Cxy[idx1:idx2])
-        
+        # Apply Fisher transformation to the magnitude coherence
+        z = np.sqrt(2 * L) * np.arctanh(np.sqrt(Cxy))
 
-        z_coh[j,:] = np.sqrt(2*L) * np.arctanh(Cxy) - bias
+        # Estimate bias from the 100-250 Hz band
+        bias = np.mean(z[idx1:idx2])
+
+        z_coh[j,:] = z - bias
 
 
     return f, z_coh
