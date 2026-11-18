@@ -181,34 +181,62 @@ def estimate_num_factors_parallel_analysis(
     return eigenvalues, rand_percentile
 
                                             
-def run_factor_analysis(
-        filtered_spikes_trains, 
-        n_factors, 
-        method='ml', 
-        maxiter=100000, 
-        rot='promax'
-):
 
-    # 1. Run factor analysis
+import numpy as np
+from factor_analyzer import FactorAnalyzer, Rotator
+
+
+def run_factor_analysis(
+    filtered_spikes_trains,
+    n_factors,
+    method="ml",
+    maxiter=100000,
+    rot="promax",
+):
+    # Input: (n_motor_units, n_samples)
+    X = filtered_spikes_trains.T
+
+    # 1. Fit factor model
     fa = FactorAnalyzer(
         n_factors=n_factors,
-        rotation=None,       
+        rotation=None,
         method=method,
+        is_corr_matrix=False,
     )
-    # Fit the model
-    fa.fit(filtered_spikes_trains.T)
-    # Extract the loadings
+    fa.fit(X)
+
+    # 2. Extract loadings and factor scores
     L = fa.loadings_
+    scores = fa.transform(X)
 
-    # 2. Apply rotation
-    rotator = Rotator(method=rot, max_iter=maxiter)
-    L_rot = rotator.fit_transform(L)
+    # 3. Apply rotation if requested
+    phi = np.eye(n_factors)
 
-    scores = filtered_spikes_trains.T @ L_rot  
-    unique_vars = fa.get_uniquenesses()  
+    if rot is not None:
+        rotator = Rotator(
+            method=rot,
+            max_iter=maxiter,
+        )
 
-    _, _, cum_factor_var = fa.get_factor_variance()
+        L = rotator.fit_transform(L)
 
-    return L_rot, scores, unique_vars, cum_factor_var
+        # Rotation transformation
+        T = rotator.rotation_
 
+        # Transform factor scores consistently
+        scores = scores @ T
 
+        # Factor correlation matrix (identity for orthogonal rotation)
+        if rotator.phi_ is not None:
+            phi = rotator.phi_
+
+    # 4. Extract uniquenesses
+    unique_vars = fa.get_uniquenesses()
+
+    # 5. Explained variance
+    factor_var = np.sum(L**2, axis=0)
+
+    # Cumulative variance relative to total standardized variance
+    cum_factor_var = np.cumsum(factor_var) / X.shape[1]
+
+    return L, scores, unique_vars, cum_factor_var, phi
