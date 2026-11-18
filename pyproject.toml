@@ -16,7 +16,7 @@ authors = [
 dependencies = [
     "numpy",
     "scipy",
-    "scikit-learn",
+    "scikit-learn<1.8.0",
     "factor-analyzer"
 ]
 
